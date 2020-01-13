@@ -15,7 +15,6 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
 
 import static com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility.ANY;
 import static com.fasterxml.jackson.annotation.PropertyAccessor.FIELD;
@@ -40,8 +39,6 @@ public class JsonObjectMapper {
     static {
         // Handle Optional and other JDK 8 only features
         MAPPER.registerModule(new Jdk8Module());
-        // Access Optional values
-        MAPPER.addMixIn(Optional.class, OptionalMixin.class);
         // Avoid annotations on domain entities by
         // using compiled methods' metadata
         MAPPER.registerModule(new ParameterNamesModule());
@@ -57,18 +54,14 @@ public class JsonObjectMapper {
      * @return JSON representation of {@code obj}
      */
     public static <T extends Entity> Map<String, Object> getJson(T obj) {
-        // Convert Object to JSON string
-        String json = null;
+        String json;
         try {
             json = MAPPER.writeValueAsString(obj);
         } catch (JsonProcessingException e) {
             return null;
         }
-        // Map TypeReference
-        TypeReference typeRef = new TypeReference<Map<String, Object>>(){};
-        // convert JSON string to Map
         try {
-            return MAPPER.readValue(json, typeRef);
+            return MAPPER.readValue(json, new TypeReference<HashMap<String, Object>>(){});
         } catch (IOException e) {
             return null;
         }

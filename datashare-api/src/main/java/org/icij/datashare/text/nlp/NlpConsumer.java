@@ -14,6 +14,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
 
 import static org.icij.datashare.com.Message.Field.*;
+import static org.icij.datashare.text.NamedEntity.allFrom;
 
 public class NlpConsumer implements DatashareListener {
     private final Indexer indexer;
@@ -29,8 +30,9 @@ public class NlpConsumer implements DatashareListener {
     }
 
     @Override
-    public void run() {
+    public Integer call() {
         boolean exitAsked = false;
+        int nbMessages = 0;
         while (! exitAsked) {
             try {
                 Message message = messageQueue.poll(30, TimeUnit.SECONDS);
@@ -38,6 +40,7 @@ public class NlpConsumer implements DatashareListener {
                     switch (message.type) {
                         case EXTRACT_NLP:
                             findNamedEntities(message.content.get(INDEX_NAME), message.content.get(DOC_ID), message.content.get(R_ID));
+                            nbMessages++;
                             break;
                         case SHUTDOWN:
                             exitAsked = true;
@@ -47,6 +50,7 @@ public class NlpConsumer implements DatashareListener {
                     }
                     synchronized (messageQueue) {
                         if (messageQueue.isEmpty()) {
+                            logger.debug("queue is empty notifying messageQueue {}", messageQueue.hashCode());
                             messageQueue.notify();
                         }
                     }
@@ -56,17 +60,19 @@ public class NlpConsumer implements DatashareListener {
             }
         }
         logger.info("exiting main loop");
+        return nbMessages;
     }
 
-    void findNamedEntities(final String indexName, final String id, final String routing) throws InterruptedException {
+    void findNamedEntities(final String projectName, final String id, final String routing) throws InterruptedException {
         try {
-            Document doc = indexer.get(indexName, id, routing);
+            Document doc = indexer.get(projectName, id, routing);
             if (doc != null) {
                 logger.info("extracting {} entities for document {}", nlpPipeline.getType(), doc.getId());
                 if (nlpPipeline.initialize(doc.getLanguage())) {
                     Annotations annotations = nlpPipeline.process(doc.getContent(), doc.getId(), doc.getLanguage());
-                    List<NamedEntity> namedEntities = NamedEntity.allFrom(doc.getContent(), annotations);
-                    indexer.bulkAdd(indexName, nlpPipeline.getType(), namedEntities, doc);
+                    List<NamedEntity> namedEntities = allFrom(doc.getContent(), annotations);
+                    namedEntities.addAll(nlpPipeline.processHeaders(doc));
+                    indexer.bulkAdd(projectName, nlpPipeline.getType(), namedEntities, doc);
                     logger.info("added {} named entities to document {}", namedEntities.size(), doc.getId());
                     nlpPipeline.terminate(doc.getLanguage());
                 }

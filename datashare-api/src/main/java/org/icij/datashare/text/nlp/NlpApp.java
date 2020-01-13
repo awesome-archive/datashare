@@ -6,6 +6,7 @@ import com.google.inject.assistedinject.Assisted;
 import com.google.inject.assistedinject.AssistedInject;
 import com.google.inject.assistedinject.FactoryModuleBuilder;
 import org.icij.datashare.PropertiesProvider;
+import org.icij.datashare.com.DataBus;
 import org.icij.datashare.user.User;
 import org.icij.datashare.com.Message;
 import org.icij.datashare.com.ShutdownMessage;
@@ -29,10 +30,9 @@ import static java.util.stream.Collectors.toList;
 import static java.util.stream.Stream.generate;
 
 public class NlpApp implements Runnable, Monitorable, UserTask {
-    private static final long DEFAULT_TIMEOUT_MILLIS = 10 * 60 * 1000;
+    private static final long DEFAULT_TIMEOUT_MILLIS = 30 * 60 * 1000;
     private final Logger logger = LoggerFactory.getLogger(getClass());
     public static final String NLP_PARALLELISM_OPT = "nlpParallelism";
-    private static final int DEFAULT_QUEUE_SIZE = 10000;
     private final AbstractPipeline pipeline;
     private final Indexer indexer;
     private final long shutdownTimeoutMillis;
@@ -43,26 +43,26 @@ public class NlpApp implements Runnable, Monitorable, UserTask {
     private ExecutorService threadPool = null;
 
     @AssistedInject
-    public NlpApp(final Indexer indexer, final PropertiesProvider propertiesProvider, @Assisted final AbstractPipeline pipeline, @Assisted final User user) {
-        this(indexer, pipeline, propertiesProvider.getProperties(), () -> {}, 0, user);
+    public NlpApp(final DataBus dataBus, final Indexer indexer, final PropertiesProvider propertiesProvider, @Assisted final AbstractPipeline pipeline, @Assisted final User user) {
+        this(dataBus, indexer, pipeline, propertiesProvider.getProperties(), () -> {}, 0, user);
     }
 
     @AssistedInject
-    public NlpApp(final Indexer indexer, @Assisted final AbstractPipeline pipeline, @Assisted final Properties properties,
+    public NlpApp(final DataBus dataBus, final Indexer indexer, @Assisted final AbstractPipeline pipeline, @Assisted final Properties properties,
                   @Assisted final User user, @Assisted final Runnable subscribeCb) {
-        this(indexer, pipeline, properties, subscribeCb, 0, user);
+        this(dataBus, indexer, pipeline, properties, subscribeCb, 0, user);
     }
 
-    NlpApp(final Indexer indexer, final AbstractPipeline pipeline, final Properties properties,
+    NlpApp(final DataBus dataBus, final Indexer indexer, final AbstractPipeline pipeline, final Properties properties,
            Runnable subscribedCb, long shutdownTimeoutMillis, User user) {
         this.pipeline = pipeline;
         this.indexer = indexer;
         this.shutdownTimeoutMillis = shutdownTimeoutMillis == 0 ? DEFAULT_TIMEOUT_MILLIS : shutdownTimeoutMillis;
-        this.queue = new LinkedBlockingQueue<>(DEFAULT_QUEUE_SIZE);
+        this.queue = new LinkedBlockingQueue<>();
         this.user = user;
 
         parallelism = parseInt(ofNullable(properties.getProperty(NLP_PARALLELISM_OPT)).orElse("1"));
-        forwarder = new NlpForwarder(properties, queue, subscribedCb);
+        forwarder = new NlpForwarder(dataBus, queue, subscribedCb);
     }
 
     public void run() {
@@ -70,8 +70,8 @@ public class NlpApp implements Runnable, Monitorable, UserTask {
             logger.info("running NlpApp for {} pipeline with {} thread(s)", pipeline.getType(), parallelism);
             this.threadPool = Executors.newFixedThreadPool(parallelism,
                     new ThreadFactoryBuilder().setNameFormat(pipeline.getType().name() + "-%d").build());
-            generate(() -> new NlpConsumer(pipeline, indexer, queue)).limit(parallelism).forEach(l -> threadPool.execute(l));
-            forwarder.run();
+            generate(() -> new NlpConsumer(pipeline, indexer, queue)).limit(parallelism).forEach(l -> threadPool.submit(l));
+            forwarder.call();
             logger.info("forwarder exited waiting for consumer(s) to finish");
             shutdown();
         } catch (Throwable throwable) {

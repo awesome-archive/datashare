@@ -1,79 +1,83 @@
 package org.icij.datashare.cli;
 
 import com.google.common.base.Joiner;
-import joptsimple.*;
-import org.icij.datashare.WebApp;
+import joptsimple.AbstractOptionSpec;
+import joptsimple.OptionParser;
+import joptsimple.OptionSet;
+import joptsimple.OptionSpec;
+import org.icij.datashare.Mode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.*;
 
-import static java.lang.Boolean.parseBoolean;
 import static java.util.Optional.ofNullable;
-import static org.icij.datashare.cli.DatashareCliOptions.NO_WEB_SERVER_OPT;
 
 
-public final class DatashareCli {
+public class DatashareCli {
     private static final Logger LOGGER = LoggerFactory.getLogger(DatashareCli.class);
+    public Properties properties;
 
-    static Properties properties;
-    static boolean webServer = true;
-
-    public static void main(String[] args) throws Exception {
-        if (!parseArguments(args)) {
-            LOGGER.info("Exiting...");
-            System.exit(0);
-        }
-        LOGGER.info("Running datashare " + (webServer ? "web server" : ""));
-        LOGGER.info("with properties: " + properties);
-
-        if (webServer) {
-            WebApp.start(properties);
-        } else {
-            CliApp.start(properties);
-        }
-    }
-
-    static boolean parseArguments(String[] args) {
+    public boolean parseArguments(String[] args) {
         OptionParser parser = new OptionParser();
         AbstractOptionSpec<Void> helpOpt = DatashareCliOptions.help(parser);
 
+        DatashareCliOptions.configFile(parser);
+        DatashareCliOptions.tcpListenPort(parser);
         DatashareCliOptions.mode(parser);
-        OptionSpec<DatashareCli.Stage> stagesOpt = DatashareCliOptions.stages(parser);
+        DatashareCliOptions.stages(parser);
         DatashareCliOptions.dataDir(parser);
         DatashareCliOptions.enableOcr(parser);
         DatashareCliOptions.nlpPipelines(parser);
         DatashareCliOptions.resume(parser);
+        DatashareCliOptions.scrollSize(parser);
+        DatashareCliOptions.filterSet(parser);
         DatashareCliOptions.parallelism(parser);
         DatashareCliOptions.fileParserParallelism(parser);
         DatashareCliOptions.nlpParallelism(parser);
+        DatashareCliOptions.followSymlinks(parser);
 
         DatashareCliOptions.clusterName(parser);
-        DatashareCliOptions.indexName(parser);
+
+        OptionSpec<String> userOption = DatashareCliOptions.defaultUser(parser);
+        OptionSpec<String> projectOption = DatashareCliOptions.defaultProject(parser);
+
         DatashareCliOptions.esHost(parser);
+        DatashareCliOptions.queueName(parser);
 
         DatashareCliOptions.cors(parser);
-        DatashareCliOptions.noweb(parser);
+        DatashareCliOptions.queueType(parser);
+        DatashareCliOptions.busType(parser);
         DatashareCliOptions.messageBusAddress(parser);
         DatashareCliOptions.redisAddress(parser);
+        DatashareCliOptions.dataSourceUrl(parser);
+        DatashareCliOptions.rootHost(parser);
 
+        DatashareCliOptions.sessionTtlSeconds(parser);
+        DatashareCliOptions.protectedUriPrefix(parser);
         DatashareCliOptions.oauthSecret(parser);
         DatashareCliOptions.oauthClient(parser);
         DatashareCliOptions.oauthApiUrl(parser);
         DatashareCliOptions.oauthAuthorizeUrl(parser);
         DatashareCliOptions.oauthTokenUrl(parser);
         DatashareCliOptions.authFilter(parser);
+        DatashareCliOptions.oauthCallbackPath(parser);
 
         try {
             OptionSet options = parser.parse(args);
-
+            if (options.hasArgument(userOption) && options.hasArgument(projectOption)) {
+                throw new IllegalArgumentException("you should provide either user or project but not both");
+            }
             if (options.has(helpOpt)) {
                 printHelp(parser);
                 return false;
             }
             properties = asProperties(options, null);
-            webServer = !parseBoolean(ofNullable(properties.getProperty(NO_WEB_SERVER_OPT)).orElse("false"));
+            if (options.hasArgument(userOption)) {
+                properties.setProperty(projectOption.options().get(1),
+                        userOption.value(options).trim() + "-datashare");
+            }
             return true;
         } catch (Exception e) {
             LOGGER.error("Failed to parse arguments.", e);
@@ -83,7 +87,7 @@ public final class DatashareCli {
     }
 
     // from https://pholser.github.io/jopt-simple/examples.html
-    private static Properties asProperties(OptionSet options, String prefix) {
+    private Properties asProperties(OptionSet options, String prefix) {
         Properties properties = new Properties();
         for (Map.Entry<OptionSpec<?>, List<?>> entry : options.asMap().entrySet()) {
             OptionSpec<?> spec = entry.getKey();
@@ -96,7 +100,7 @@ public final class DatashareCli {
         return properties;
     }
 
-    private static String asPropertyKey(String prefix, OptionSpec<?> spec) {
+    private String asPropertyKey(String prefix, OptionSpec<?> spec) {
         List<String> flags = spec.options();
         for (String flag : flags)
             if (1 < flag.length())
@@ -104,12 +108,12 @@ public final class DatashareCli {
         throw new IllegalArgumentException("No usable non-short flag: " + flags);
     }
 
-    private static String asPropertyValue(List<?> values) {
+    private String asPropertyValue(List<?> values) {
         String stringValue = Joiner.on(",").join(values);
         return stringValue.isEmpty() ? "true": stringValue;
     }
 
-    private static void printHelp(OptionParser parser) {
+    private void printHelp(OptionParser parser) {
         try {
             System.out.println("Usage: ");
             parser.printHelpOn(System.out);
@@ -118,8 +122,15 @@ public final class DatashareCli {
         }
     }
 
+    public boolean isWebServer() {
+        return Mode.valueOf(ofNullable(properties).orElse(new Properties()).getProperty("mode")).isWebServer();
+    }
+
     public enum Stage {
         SCAN,
+        SCANIDX,
+        DEDUPLICATE,
+        FILTER,
         INDEX,
         NLP;
 

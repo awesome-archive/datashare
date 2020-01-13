@@ -7,14 +7,14 @@
     <parent>
         <artifactId>datashare-nlp</artifactId>
         <groupId>org.icij.datashare</groupId>
-        <version>1.38</version>
+        <version>4.24.2</version>
     </parent>
 
     <artifactId>datashare-nlp-corenlp</artifactId>
     <packaging>jar</packaging>
 
     <properties>
-        <corenlp.version>3.8.0</corenlp.version>
+        <corenlp.version>3.9.2</corenlp.version>
     </properties>
 
     <dependencies>
@@ -24,7 +24,7 @@
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
-            <artifactId>datashare-index</artifactId>
+            <artifactId>datashare-index-remote</artifactId>
             <scope>provided</scope>
         </dependency>
 

@@ -3,8 +3,13 @@ package org.icij.datashare;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URL;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
@@ -18,22 +23,27 @@ import static java.util.stream.Collectors.toMap;
 
 public class PropertiesProvider {
     private static final String PREFIX = "DS_DOCKER_";
+    private static final String DEFAULT_DATASHARE_PROPERTIES_FILE_NAME = "datashare.properties";
+    public static final String CONFIG_FILE_PARAMETER_KEY = "configFile";
+    public static final String QUEUE_NAME_OPTION = "queueName";
+
     private Logger logger = LoggerFactory.getLogger(getClass());
-    private final String fileName;
+    private final Path configPath;
     private volatile Properties cachedProperties;
 
-    public PropertiesProvider() {fileName = "datashare.properties";}
+    public PropertiesProvider() {this((String) null);}
     public PropertiesProvider(String fileName) {
-        this.fileName = fileName;
+        this.configPath = getFilePath(fileName);
     }
+
     public PropertiesProvider(final Properties properties) {
         this.cachedProperties = properties;
-        fileName = null;
+        configPath = null;
     }
+
     public PropertiesProvider(final Map<String, String> hashMap) {
-        cachedProperties = new Properties();
-        cachedProperties.putAll(hashMap);
-        fileName = null;
+        cachedProperties = fromMap(hashMap);
+        configPath = null;
     }
 
     public Properties getProperties() {
@@ -41,15 +51,16 @@ public class PropertiesProvider {
             synchronized(this) {
                 if (cachedProperties == null) {
                     Properties localProperties = new Properties();
-                    URL propertiesUrl = Thread.currentThread().getContextClassLoader().getResource(fileName);
                     try {
-                        logger.info("reading properties from {}", propertiesUrl);
-                        localProperties.load(propertiesUrl.openStream());
-                        loadEnvVariables(localProperties);
+                        InputStream propertiesStream = new FileInputStream(configPath.toFile());
+                        logger.info("reading properties from {}", configPath);
+                        localProperties.load(propertiesStream);
                     } catch (IOException | NullPointerException e) {
-                        logger.warn("no {} found, using empty properties", fileName);
+                        logger.warn("no {} file found, using default values", configPath);
                     }
+                    loadEnvVariables(localProperties);
                     cachedProperties = localProperties;
+                    logger.info("properties set to {}", cachedProperties);
                 }
             }
         }
@@ -77,13 +88,20 @@ public class PropertiesProvider {
     }
 
     public PropertiesProvider mergeWith(final Properties properties) {
+        putAllIfIsAbsent(getProperties(), properties);
+        logger.info("merged properties (without override) with {}", properties);
+        return this;
+    }
+
+    public PropertiesProvider overrideWith(final Properties properties) {
+        logger.info("overriding properties with {}", properties);
         getProperties().putAll(properties);
         return this;
     }
 
     public Properties createMerged(Properties properties) {
         Properties mergedProperties = (Properties) getProperties().clone();
-        mergedProperties.putAll(properties);
+        putAllIfIsAbsent(mergedProperties, properties);
         return mergedProperties;
     }
 
@@ -91,5 +109,62 @@ public class PropertiesProvider {
         return getProperties().entrySet().
                 stream().filter(e -> stream(excludedKeyPatterns).noneMatch(s -> Pattern.matches(s, (String)e.getKey()))).
                 collect(toMap(e -> (String)e.getKey(), Map.Entry::getValue));
+    }
+
+    public void save() throws IOException {
+        logger.info("writing properties to file {}", configPath);
+        if (configPath == null) {
+            throw new ConfigurationNotFound();
+        }
+        Properties toSave = new Properties();
+        toSave.putAll(getFilteredProperties("user.*"));
+        toSave.store(new FileOutputStream(configPath.toFile()), "Datashare properties");
+    }
+
+    public static Properties fromMap(Map<String, String> map) {
+        if (map == null) return null;
+        Properties properties = new Properties();
+        properties.putAll(map);
+        return properties;
+    }
+
+    private void putAllIfIsAbsent(Properties dest, Properties propertiesToMerge) {
+        for (Map.Entry entry: propertiesToMerge.entrySet()) {
+            dest.putIfAbsent(entry.getKey(), entry.getValue());
+        }
+    }
+
+    private Path getFilePath(String fileName) {
+        Path path;
+        if (fileName == null) {
+            URL url = Thread.currentThread().getContextClassLoader().getResource(DEFAULT_DATASHARE_PROPERTIES_FILE_NAME);
+            if (url == null) return null;
+            path = Paths.get(url.getPath());
+        } else {
+            path = Paths.get(fileName);
+        }
+        return isFileReadable(path) ? path : null;
+    }
+
+    boolean isFileReadable(final Path filePath) {
+        if (filePath.toFile().exists()) {
+            if (!filePath.toFile().canWrite()) {
+                logger.warn("{} is not writable. The config file won't be able to be saved", filePath);
+            }
+            return true;
+        } else {
+            try {
+                filePath.toFile().createNewFile();
+                filePath.toFile().delete();
+                return true;
+            } catch (IOException e) {
+                logger.warn("{} is not writable. The config file won't be able to be saved", filePath);
+                return false;
+            }
+        }
+    }
+
+    public static class ConfigurationNotFound extends RuntimeException {
+        ConfigurationNotFound() { super("cannot find configuration file");}
     }
 }

@@ -6,6 +6,7 @@ import joptsimple.OptionSpec;
 import joptsimple.OptionSpecBuilder;
 import org.icij.datashare.Mode;
 import org.icij.datashare.text.nlp.Pipeline;
+import org.icij.datashare.user.User;
 
 import java.io.File;
 import java.util.Arrays;
@@ -15,24 +16,24 @@ import static java.util.Collections.singletonList;
 import static org.icij.datashare.text.nlp.NlpApp.NLP_PARALLELISM_OPT;
 
 
-final class DatashareCliOptions {
-    static final char ARG_VALS_SEP = ',';
+public final class DatashareCliOptions {
+    public static final char ARG_VALS_SEP = ',';
     private static final Integer DEFAULT_PARSER_PARALLELISM = 1;
     private static final Integer DEFAULT_NLP_PARALLELISM = 1;
     private static final Integer DEFAULT_PARALLELISM =
             Runtime.getRuntime().availableProcessors() == 1 ? 2 : Runtime.getRuntime().availableProcessors();
-    static final String STAGES_OPT = "stages";
-    static final String DATA_DIR_OPT = "dataDir";
-    static final String NLP_PIPELINES_OPT = "nlpPipelines";
+    public static final String STAGES_OPT = "stages";
+    public static final String DATA_DIR_OPT = "dataDir";
+    public static final String NLP_PIPELINES_OPT = "nlpPipelines";
     static final String MESSAGE_BUS_OPT = "messageBusAddress";
-    static final String NO_WEB_SERVER_OPT = "noweb";
-    static final String RESUME_OPT = "resume";
+    static final String ROOT_HOST = "rootHost";
+    public static final String RESUME_OPT = "resume";
     public static final String PARALLELISM = "parallelism";
 
     static OptionSpec<DatashareCli.Stage> stages(OptionParser parser) {
         return parser.acceptsAll(
                 asList(STAGES_OPT, "s"),
-                "Stages to be run.")
+                "Stages to be run. WARN that FILTER/DEDUPLICATE stages are not streamable like the others. They should be run alone.")
                 .withRequiredArg()
                 .ofType( DatashareCli.Stage.class )
                 .withValuesSeparatedBy(ARG_VALS_SEP)
@@ -48,16 +49,56 @@ final class DatashareCliOptions {
                 .defaultsTo(Mode.LOCAL);
     }
 
-    static OptionSpecBuilder noweb(OptionParser parser) {
-        return parser.acceptsAll(singletonList(NO_WEB_SERVER_OPT), "Run as a cli app (default is web server)");
+    static OptionSpec<String> defaultUser(OptionParser parser) {
+        return parser.acceptsAll(
+                asList("u", "defaultUserName"),
+                "Default local user name")
+                .withRequiredArg()
+                .ofType( String.class )
+                .defaultsTo(User.local().id);
     }
 
-    public static OptionSpec<String> cors(OptionParser parser) {
+    static OptionSpecBuilder followSymlinks(OptionParser parser) {
+        return parser.acceptsAll(singletonList("followSymlinks"), "Follow symlinks (default false)");
+    }
+
+    static OptionSpec<String> cors(OptionParser parser) {
         return parser.acceptsAll(
                 singletonList("cors"), "CORS headers (needs the web option)")
                         .withRequiredArg()
                         .ofType(String.class)
                         .defaultsTo("no-cors");
+    }
+
+    static OptionSpec<String> configFile(OptionParser parser) {
+        return parser.acceptsAll(
+                asList("c", "configFile"), "Property configuration file")
+                        .withRequiredArg()
+                        .ofType(String.class);
+    }
+
+    static OptionSpec<Integer> tcpListenPort(OptionParser parser) {
+        return parser.acceptsAll(
+                singletonList("tcpListenPort"), "Port used by the HTTP server")
+                        .withRequiredArg()
+                        .ofType(Integer.class)
+                        .defaultsTo(8080);
+    }
+
+    static OptionSpec<Integer> sessionTtlSeconds(OptionParser parser) {
+        return parser.acceptsAll(
+                singletonList("sessionTtlSeconds"), "Time to live for a HTTP session in seconds")
+                        .withRequiredArg()
+                        .ofType(Integer.class)
+                        .defaultsTo(43200);
+    }
+
+    static OptionSpec<String> protectedUriPrefix(OptionParser parser) {
+        return parser.acceptsAll(
+                singletonList("protectedUriPrefix"), "Protected URI prefix")
+                        .withRequiredArg()
+                        .ofType(String.class)
+                        .defaultsTo("/api/");
     }
 
     static OptionSpecBuilder resume(OptionParser parser) {
@@ -67,16 +108,31 @@ final class DatashareCliOptions {
     static OptionSpec<File> dataDir(OptionParser parser) {
         return parser.acceptsAll(
                 asList(DATA_DIR_OPT, "d"),
-                "Source files directory. WARN this directory must end with \"data\"" )
+                "Document source files directory" )
                 .withRequiredArg()
                 .ofType( File.class )
                 .defaultsTo(new File("/home/datashare/data"));
     }
 
+    static OptionSpec<String> rootHost(OptionParser parser) {
+            return parser.acceptsAll(
+                    singletonList(ROOT_HOST),
+                    "Datashare host for urls")
+                    .withRequiredArg();
+        }
+
     static OptionSpec<String> messageBusAddress(OptionParser parser) {
         return parser.acceptsAll(
                 singletonList(MESSAGE_BUS_OPT),
                 "Message bus address")
+                .withRequiredArg()
+                .defaultsTo("redis");
+    }
+
+    public static OptionSpec<String> busType(OptionParser parser) {
+        return parser.acceptsAll(
+                singletonList("busType"),
+                "Backend data bus type. Values can be \"memory\" or \"redis\"")
                 .withRequiredArg()
                 .defaultsTo("redis");
     }
@@ -87,6 +143,14 @@ final class DatashareCliOptions {
                     "Redis queue address")
                     .withRequiredArg()
                     .defaultsTo("redis://redis:6379");
+        }
+
+    static OptionSpec<String> queueType(OptionParser parser) {
+            return parser.acceptsAll(
+                    singletonList("queueType"),
+                    "Backend queues and sets type. Values can be \"memory\" or \"redis\"")
+                    .withRequiredArg()
+                    .defaultsTo("redis");
         }
 
     static OptionSpec<Integer> fileParserParallelism(OptionParser parser) {
@@ -107,11 +171,26 @@ final class DatashareCliOptions {
                 .defaultsTo(DEFAULT_NLP_PARALLELISM);
     }
 
-    static OptionSpecBuilder enableOcr(OptionParser parser) {
+    public static OptionSpec<Integer> scrollSize(OptionParser parser) {
         return parser.acceptsAll(
-                asList("enableOcr", "o"),
+                asList("scrollSize"), "Scroll size used for elasticsearch scrolls (SCANIDX task)")
+                .withRequiredArg()
+                .ofType(Integer.class).defaultsTo(1000);
+    }
+
+    public static OptionSpec<String> filterSet(OptionParser parser) {
+        return parser.acceptsAll(
+                asList("filterSet"), "name of the set for queue filtering")
+                .withRequiredArg()
+                .ofType(String.class).defaultsTo("extract:filter");
+    }
+
+    static OptionSpec<Boolean> enableOcr(OptionParser parser) {
+        return parser.acceptsAll(
+                asList("ocr", "o"),
                 "Run optical character recognition at file parsing time. " +
-                        "(Tesseract must be installed beforehand).");
+                        "(Tesseract must be installed beforehand).").
+                withRequiredArg().ofType(Boolean.class).defaultsTo(true);
     }
 
     static OptionSpec<Pipeline.Type> nlpPipelines(OptionParser parser) {
@@ -121,12 +200,12 @@ final class DatashareCliOptions {
                 .withRequiredArg()
                 .ofType( Pipeline.Type.class )
                 .withValuesSeparatedBy(ARG_VALS_SEP)
-                .defaultsTo(Pipeline.Type.values());
+                .defaultsTo(new Pipeline.Type[]{});
     }
 
     static OptionSpec<Integer> parallelism(OptionParser parser) {
         return parser.acceptsAll(
-                asList("p", PARALLELISM),
+                asList(PARALLELISM),
                 "Number of threads allocated for task management.")
                 .withRequiredArg()
                 .ofType( Integer.class )
@@ -141,9 +220,17 @@ final class DatashareCliOptions {
                 .defaultsTo("http://elasticsearch:9200");
     }
 
-    static OptionSpec<String> indexName(OptionParser parser) {
+    static OptionSpec<String> dataSourceUrl(OptionParser parser) {
         return parser.acceptsAll(
-                asList("indexName", "n"), "Index name")
+                asList("dataSourceUrl"), "Datasource URL")
+                .withRequiredArg()
+                .ofType(String.class)
+                .defaultsTo("jdbc:sqlite:file:memorydb.db?mode=memory&cache=shared");
+    }
+
+    static OptionSpec<String> defaultProject(OptionParser parser) {
+        return parser.acceptsAll(
+                asList("defaultProject", "p"), "Default project name")
                 .withRequiredArg()
                 .ofType(String.class)
                 .defaultsTo("local-datashare");
@@ -151,10 +238,18 @@ final class DatashareCliOptions {
 
     static OptionSpec<String> clusterName(OptionParser parser) {
         return parser.acceptsAll(
-                asList("clusterName", "c"), "Cluster name")
+                singletonList("clusterName"), "Cluster name")
                 .withRequiredArg()
                 .ofType(String.class)
                 .defaultsTo("datashare");
+    }
+
+    static OptionSpec<String> queueName(OptionParser parser) {
+        return parser.acceptsAll(
+                singletonList("queueName"), "Redis queue name")
+                .withRequiredArg()
+                .ofType(String.class)
+                .defaultsTo("extract:queue");
     }
 
     static AbstractOptionSpec<Void> help(OptionParser parser) {
@@ -195,6 +290,12 @@ final class DatashareCliOptions {
     static OptionSpec<String> oauthApiUrl(OptionParser parser) {
         return parser.acceptsAll(
                 asList("oauthApiUrl"), "OAuth2 api url")
+                .withRequiredArg()
+                .ofType(String.class);
+    }
+    static OptionSpec<String> oauthCallbackPath(OptionParser parser) {
+        return parser.acceptsAll(
+                asList("oauthCallbackPath"), "OAuth2 callback path (in datashare)")
                 .withRequiredArg()
                 .ofType(String.class);
     }

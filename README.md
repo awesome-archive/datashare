@@ -1,42 +1,38 @@
-# DataShare
+# Datashare
 
 [![Circle CI](https://circleci.com/gh/ICIJ/datashare.png?style=shield&circle-token=b7637e0aec84ab65d39ccd0d331bae27ba697299)](https://circleci.com/gh/ICIJ/datashare)
+[![Crowdin](https://badges.crowdin.net/datashare/localized.svg)](https://crowdin.com/project/datashare)
 
-DataShare aims at allowing for valuable knowledge about people and companies 
-locked within hundreds of pages of documents inside a computer to be sieved 
-into indexes and shared securely within a network of trusted individuals, 
-fostering unforeseen collaboration and prompting new and better investigations 
-that uncover corruption, transnational crime and abuse of power.
+## Download
 
-[DataShare: connecting local data with a global collective intelligence](https://www.newschallenge.org/challenge/data/refinement/datashare-connecting-local-data-with-a-global-collective-intelligence)
+https://datashare.icij.org/
 
 
-## Current Features
+## Documentation
 
-An Extensible Multilingual Information Extraction and Search Platform
+Datashare's user guide can be found here: https://icij.gitbook.io/datashare/
 
- - Extract Text from Files; 
- - Extract Organizations, Persons and Locations from Text; 
- - Index and Search all
 
-Multithreaded and Distributed Processings
+## Description
 
-Local or Remote Indexing
+Datashare is a free open-source desktop application developed by non-profit International Consortium of Investigative Journalists (ICIJ). 
 
+Datashare allows investigative journalists to:
+- access all their documents in one place locally on their computer while securing them from potential third-party interferences
+- search pdfs, images, texts, spreadsheets, slides and any files, simultaneously
+- automatically detect and filter by people, organizations and locations
+
+## Translation of the interface
+
+You're welcome to suggest translations on Datashare's Crowdin https://crwd.in/datashare. Please contact us if you would like to add a language.
 
 ## Installing and using
 
 ### Using with elasticsearch
-You can download the script [datashare.sh](datashare-dist/src/main/datashare.sh) and execute it. It will :
 
-- download [redis](https://redis.io), [elasticsearch](https://www.elastic.co/) and datashare [docker](https://www.docker.com/docker-community) containers
-- initialize an elasticsearch index with datashare mapping
-- provide CLI to run datashare extract, index, name finding tasks
-- provide a WEB GUI to run datashare extract, index, name finding tasks, and search in the documents
+You can download the script at datashare.icij.org.
 
-To access web GUI, go in your documents folder and launch `path/to/datashare.sh -w` then connect datashare on http://localhost:8080
-
-If you want to avoid synchronization of NLP models (offline use) then do `export DS_JAVA_OPTS="-DDS_SYNC_NLP_MODELS=false"` before launching the `datashare.sh` script.
+To access web GUI, go in your documents folder and launch `path/to/datashare.sh` then connect datashare on http://localhost:8080
 
 ### Using only Named Entity Recognition
 
@@ -44,7 +40,7 @@ You can use the datashare docker container only for HTTP exposed name finding AP
 
 Just run : 
 
-    docker run -ti -p 8080:8080 -v /path/to/dist/:/home/datashare/dist icij/datashare:0.10 -m NER -w
+    docker run -ti -p 8080:8080 -v /path/to/dist/:/home/datashare/dist icij/datashare:0.10 -m NER
 
 A bit of explanation : 
 - `-w` tells datashare to run the webserver. It is launched on 8080 that's why the port is mapped for docker
@@ -70,7 +66,7 @@ The last path part (CORENLP) is the framework. You can choose it among CORENLP, 
 
 *Support*
 
-  [Tika File Formats](https://tika.apache.org/1.15/formats.html)
+  [Tika File Formats](https://tika.apache.org/1.18/formats.html)
 
   
 ### **Extract Persons, Organizations or Locations from Text** 
@@ -113,12 +109,12 @@ The last path part (CORENLP) is the framework. You can choose it among CORENLP, 
 
 *Named Entity Recognition Language Support*
 
-| *`NlpStage.NER`*           | `ENGLISH`  | `SPANISH`  | `GERMAN`  | `FRENCH`  |
-|---------------------------:|:----------:|:----------:|:---------:|:---------:|
-| `NlpPipeline.Type.CORE`    |     X      |      X     |      X    |     -     |
-| `NlpPipeline.Type.OPEN`    |     X      |      X     |      -    |     X     |
-| `NlpPipeline.Type.IXA`     |     X      |      X     |      X    |     -     |
-| `NlpPipeline.Type.MITIE`   |     X      |      X     |      X    |     -     |
+| *`NlpStage.NER`*           | `ENGLISH`  | `SPANISH`  | `GERMAN`  | `FRENCH`  | `CHINESE` |
+|---------------------------:|:----------:|:----------:|:---------:|:---------:|:---------:|
+| `NlpPipeline.Type.CORENLP` |     X      |      X     |      X    |  (w/ EN)  |     X     |
+| `NlpPipeline.Type.OPENNLP` |     X      |      X     |      -    |     X     |     -     |
+| `NlpPipeline.Type.IXAPIPE` |     X      |      X     |      X    |     -     |     -     |
+| `NlpPipeline.Type.MITIE`   |     X      |      X     |      X    |     -     |     -     |
 
 *Named Entity Categories Support*
 
@@ -152,14 +148,20 @@ The last path part (CORENLP) is the framework. You can choose it among CORENLP, 
 
 Requires 
 [JDK 8](http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html),
-[Maven 3](http://maven.apache.org/download.cgi)
+[Maven 3](http://maven.apache.org/download.cgi) and a running [PostgreSQL](https://www.postgresql.org/) database (hostname `postgresql`) 
+with two databases `datashare` and `test` with write access for user `test` / password `test`. You'll need also a running
+elasticsearch instance with `elasticsearch` as hostname ; and a redis server named `redis` as well.
 
-From `datashare` root directory, type: `mvn package`
-
+```
+mvn validate
+mvn -pl datashare-api -am install
+mvn -pl datashare-db liquibase:update
+mvn test
+```
 
 ## License
 
-DataShare is released under the [GNU Affero General Public License](https://www.gnu.org/licenses/agpl-3.0.en.html)
+Datashare is released under the [GNU Affero General Public License](https://www.gnu.org/licenses/agpl-3.0.en.html)
 
 
 ## Feedback
@@ -168,19 +170,6 @@ We welcome feedback as well as contributions!
 
 For any bug, question, comment or (pull) request, 
 
-please contact us at engineering@icij.org
-
-
-## What's next
- 
- - Data Sharing module
- 
-   - Networking module
-   
-   - Content Management module
-     
-   - User Management module
-        
-   - Request and Exchange Protocol
+please contact us at datashare@icij.org
  
  

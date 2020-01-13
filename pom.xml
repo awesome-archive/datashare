@@ -4,7 +4,7 @@
 
     <groupId>org.icij.datashare</groupId>
     <artifactId>datashare</artifactId>
-    <version>1.38</version>
+    <version>4.24.2</version>
     <packaging>pom</packaging>
 
     <inceptionYear>2016</inceptionYear>
@@ -24,23 +24,19 @@
             <name>Julien Martin</name>
             <id>julm</id>
             <email>julien.pierre.martin@gmail.com</email>
-            <roles>
-                <role>Project Lead</role>
-                <role>Developer</role>
-            </roles>
             <organization>ICIJ</organization>
         </developer>
     </developers>
 
-
     <modules>
         <module>commons-test</module>
         <module>datashare-api</module>
+        <module>datashare-db</module>
         <module>datashare-cli</module>
         <module>datashare-index</module>
         <module>datashare-nlp</module>
         <module>datashare-dist</module>
-        <module>datashare-web</module>
+        <module>datashare-app</module>
     </modules>
 
     <repositories>
@@ -58,6 +54,8 @@
 
         <datashare-api.version>${project.version}</datashare-api.version>
         <datashare-cli.version>${project.version}</datashare-cli.version>
+        <datashare-.version>${project.version}</datashare-.version>
+        <datashare-mitie.version>${project.version}</datashare-mitie.version>
         <datashare-elasticsearch.version>${project.version}</datashare-elasticsearch.version>
         <datashare-corenlp.version>${project.version}</datashare-corenlp.version>
         <datashare-opennlp.version>${project.version}</datashare-opennlp.version>
@@ -67,9 +65,11 @@
         <guice.version>4.1.0</guice.version>
         <amazon.version>1.11.238</amazon.version>
 
+        <extract.version>3.2.1</extract.version>
         <opennlp.version>1.6.0</opennlp.version>
-        <elasticsearch.version>6.3.1</elasticsearch.version>
-        <jackson.version>2.8.11</jackson.version>
+        <elasticsearch.version>6.5.4</elasticsearch.version>
+        <lucene.version>7.5.0</lucene.version>
+        <jackson.version>2.10.0</jackson.version>
         <unidecode.version>0.0.7</unidecode.version>
         <joda-time.version>2.9.5</joda-time.version>
         <guava.version>19.0</guava.version>
@@ -115,6 +115,12 @@
                 <scope>runtime</scope>
             </dependency>
             <dependency>
+                <groupId>org.icij.datashare</groupId>
+                <artifactId>datashare-db</artifactId>
+                <version>${project.version}</version>
+                <scope>runtime</scope>
+            </dependency>
+            <dependency>
                 <groupId>net.sf.jopt-simple</groupId>
                 <artifactId>jopt-simple</artifactId>
                 <version>${joptsimple.version}</version>
@@ -129,6 +135,16 @@
             <dependency>
                 <groupId>org.icij.datashare</groupId>
                 <artifactId>datashare-index</artifactId>
+                <version>${datashare-elasticsearch.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.icij.datashare</groupId>
+                <artifactId>datashare-index-remote</artifactId>
+                <version>${datashare-elasticsearch.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.icij.datashare</groupId>
+                <artifactId>datashare-index-embedded</artifactId>
                 <version>${datashare-elasticsearch.version}</version>
             </dependency>
             <dependency>
@@ -160,6 +176,12 @@
                 <artifactId>datashare-nlp-ixapipe</artifactId>
                 <version>${datashare-ixapipe.version}</version>
                 <scope>runtime</scope>
+            </dependency>
+
+            <dependency>
+                <groupId>org.icij.extract</groupId>
+                <artifactId>extract-lib</artifactId>
+                <version>${extract.version}</version>
             </dependency>
 
             <dependency>

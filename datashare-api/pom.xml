@@ -7,7 +7,7 @@
     <parent>
         <artifactId>datashare</artifactId>
         <groupId>org.icij.datashare</groupId>
-        <version>1.38</version>
+        <version>4.24.2</version>
     </parent>
 
     <artifactId>datashare-api</artifactId>
@@ -32,6 +32,12 @@
         <dependency>
             <groupId>me.xuender</groupId>
             <artifactId>unidecode</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.optimaize.languagedetector</groupId>
+            <artifactId>language-detector</artifactId>
+            <version>0.6</version>
         </dependency>
 
         <!-- Jackson -->
@@ -73,12 +79,6 @@
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.icij.datashare</groupId>
-            <artifactId>commons-test</artifactId>
-            <version>${project.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>

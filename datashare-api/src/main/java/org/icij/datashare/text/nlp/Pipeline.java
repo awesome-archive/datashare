@@ -5,10 +5,9 @@ import org.icij.datashare.text.Language;
 import org.icij.datashare.text.NamedEntity;
 
 import java.nio.charset.Charset;
-import java.util.List;
-import java.util.Optional;
-import java.util.Properties;
+import java.util.*;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Arrays.asList;
@@ -20,30 +19,52 @@ import static org.icij.datashare.text.nlp.NlpStage.NER;
 
 
 public interface Pipeline {
+    static Set<Type> set(Type ...types) {
+        return new HashSet<>(Arrays.asList(types));
+    }
+
     enum Type implements EnumTypeToken {
-        CORENLP,
-        GATENLP,
-        IXAPIPE,
-        MITIE,
-        OPENNLP;
+        CORENLP((short)0),
+        GATENLP((short)1),
+        IXAPIPE((short)2),
+        MITIE((short)3),
+        OPENNLP((short)4),
+        EMAIL((short)5);
 
         private final String className;
+        public final short code;
+        public final int mask;
 
-        Type() { className = buildClassName(Pipeline.class, this); }
+        Type(final short code) {
+            this.code = code;
+            mask = 1 << code;
+            className = buildClassName(Pipeline.class, this);
+        }
+
+        public static Type fromCode(final int code) {
+            for (Type t: Type.values()) {
+                if (t.code == code) {
+                    return t;
+                }
+            }
+            throw new IllegalArgumentException("cannot find code " + code);
+        }
 
         @Override
         public String getClassName() { return className; }
 
-        public static Optional<Type> parse(final String valueName) {
-            return EnumTypeToken.parse(Type.class, valueName);
+        public static Type parse(final String valueName) {
+            return EnumTypeToken.parse(Type.class, valueName).
+                    orElseThrow(() -> new IllegalArgumentException("unknown pipeline type: " + valueName));
         }
 
         public static Optional<Type> fromClassName(final String className) {
             return EnumTypeToken.parseClassName(Pipeline.class, Type.class, className);
         }
 
-        public static Pipeline.Type[] parseAll(final String comaSeparatedTypes) {
-            return stream(comaSeparatedTypes.split(",")).map(Type::valueOf).toArray(Type[]::new);
+        public static Set<Pipeline.Type> parseAll(final String comaSeparatedTypes) {
+            return comaSeparatedTypes == null || comaSeparatedTypes.isEmpty() ? new HashSet<>():
+                    stream(comaSeparatedTypes.split(",")).map(Type::valueOf).collect(Collectors.toSet());
         }
     }
 

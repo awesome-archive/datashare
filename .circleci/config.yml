@@ -2,7 +2,7 @@ version: 2
 jobs:
   build_back:
     docker:
-      - image: circleci/java:8
+      - image: circleci/openjdk:8-stretch
       - image: docker.elastic.co/elasticsearch/elasticsearch:6.3.0
         environment:
           - "discovery.type=single-node"
@@ -11,6 +11,13 @@ jobs:
         name: elasticsearch
       - image: redis:4.0.1-alpine
         name: redis
+      - image: postgres:11.2
+        name: postgresql
+        environment:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test
+
 
     working_directory: /tmp/datashare
 
@@ -30,6 +37,16 @@ jobs:
           # fallback to using the latest cache if no exact match is found
           - v1-dependencies-
 
+      - run:
+          name: create a bootstrap datashare DB for jooq code generation
+          command: |
+            sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt/ stretch-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+            wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+            sudo apt-get update
+            sudo apt-get install postgresql-client
+            echo "postgresql:5432:test:test:test" > ~/.pgpass && chmod 600 ~/.pgpass
+            psql -h postgresql -U test test -c "CREATE DATABASE datashare;"
+
       - run: mvn validate
 
       - save_cache:
@@ -37,8 +54,9 @@ jobs:
             - ~/.m2
           key: v1-dependencies-{{ checksum "pom.xml" }}
 
+      - run: mvn -pl datashare-api -am install
+      - run: mvn -pl datashare-db liquibase:update
       - run: mvn test
-
       - run: mvn -Dmaven.test.skip=true package
 
       # making a datashare-dist-latest as we cannot access dist directory with a wildcard
@@ -55,7 +73,7 @@ jobs:
 
   build_front:
     docker:
-      - image: circleci/node:8.9.4
+      - image: circleci/node:10.15.2
       - image: docker.elastic.co/elasticsearch/elasticsearch:6.3.0
         environment:
           - "discovery.type=single-node"
@@ -135,7 +153,7 @@ jobs:
             apt-get install -y nsis cpio jq imagemagick icnsutils
             wget http://nsis.sourceforge.net/mediawiki/images/c/c9/Inetc.zip && unzip Inetc.zip && cp Plugins/x86-ansi/INetC.dll /usr/share/nsis/Plugins/
             wget https://github.com/hogliux/bomutils/archive/0.2.tar.gz && tar -zxf 0.2.tar.gz && cd bomutils-0.2 && make && make install
-            wget https://storage.googleapis.com/google-code-archive-downloads/v2/code.google.com/xar/xar-1.5.2.tar.gz && tar -zxf xar-1.5.2.tar.gz && cd xar-1.5.2 && ./configure && make && make install
+            wget https://github.com/downloads/mackyle/xar/xar-1.6.1.tar.gz && tar -zxf xar-1.6.1.tar.gz && cd xar-1.6.1 && ./configure && make && make install
       - run:
           name: adds_ssh_dir
           command: |

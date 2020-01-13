@@ -137,8 +137,10 @@ public enum Language implements Serializable {
     PORTUGUESE("pt", "por"),
     QUECHUA("qu", "que"),
     ROMANSH("rm", "roh"),
+    ROMANIAN("ro", "ron"),
     RUNDI("rn", "run"),
     MOLDAVIAN("ro", "ron"),
+    MOLDOVAN("ro", "ron"),
     RUSSIAN("ru", "rus"),
     SANSKRIT("sa", "san"),
     SARDINIAN("sc", "srd"),
@@ -190,7 +192,7 @@ public enum Language implements Serializable {
     YORUBA("yo", "yor"),
     ZHUANG("za", "zha"),
     ZULU("zu", "zul"),
-    UNKNOWN("unknown", "unknown");
+    UNKNOWN("un", "ukn");
 
     private static final long serialVersionUID =-7964823164978231L;
 
@@ -206,10 +208,8 @@ public enum Language implements Serializable {
     public String iso6392Code() { return iso6392Code; }
 
     public static Language parse(final String language) {
-        if (    language == null ||
-                language.isEmpty() ||
-                language.equalsIgnoreCase(UNKNOWN.toString())) {
-            throw new IllegalArgumentException("no language found for " + language);
+        if (language == null || language.isEmpty()) {
+            return UNKNOWN;
         }
         for (Language lang : Language.values()) {
             if (language.equalsIgnoreCase(lang.iso6391Code()) || language.equalsIgnoreCase(lang.iso6392Code())) {

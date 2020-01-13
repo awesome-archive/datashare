@@ -13,14 +13,11 @@ import org.icij.datashare.text.indexing.IndexParent;
 import org.icij.datashare.text.indexing.IndexRoot;
 import org.icij.datashare.text.indexing.IndexType;
 import org.icij.datashare.text.nlp.Annotations;
+import org.icij.datashare.text.nlp.NlpTag;
 import org.icij.datashare.text.nlp.Pipeline;
-import org.icij.datashare.text.nlp.Tag;
 
 import java.io.Serializable;
-import java.util.Collections;
-import java.util.List;
-import java.util.Locale;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import static java.lang.Math.min;
@@ -45,7 +42,7 @@ public final class NamedEntity implements Entity {
     private final String documentId;
     @IndexRoot
     private final String rootDocument;
-    private final int offset;
+    private final long offset;
     private final Pipeline.Type extractor;
     private final Language extractorLanguage;
     private final String partsOfSpeech;
@@ -55,6 +52,7 @@ public final class NamedEntity implements Entity {
         PERSON       ("PERS"),
         ORGANIZATION ("ORG"),
         LOCATION     ("LOC"),
+        EMAIL        ("MAIL"),
         DATE         ("DATE"),
         MONEY        ("MON"),
         NUMBER       ("NUM"),
@@ -97,7 +95,7 @@ public final class NamedEntity implements Entity {
 
     public static NamedEntity create(Category cat,
                                      String mention,
-                                     int offset,
+                                     long offset,
                                      String doc,
                                      Pipeline.Type extr,
                                      Language extrLang) {
@@ -121,16 +119,15 @@ public final class NamedEntity implements Entity {
                 .collect ( Collectors.toList() );
     }
 
-    public static NamedEntity from(String text, Tag tag, Annotations annotations) {
-        Category category = Category.parse(tag.getValue());
+    public static NamedEntity from(String text, NlpTag tag, Annotations annotations) {
         String mention = ThrowingFunctions.removeNewLines.apply(text.substring(tag.getBegin(), tag.getEnd()));
-        List<Tag> posTags = annotations.get(POS);
-        int posTagIndex = Collections.binarySearch(posTags, tag, Tag.comparator);
+        List<NlpTag> posTags = annotations.get(POS);
+        int posTagIndex = Collections.binarySearch(posTags, tag, NlpTag.comparator);
         if (posTagIndex > 0) {
             LOGGER.info(posTagIndex + ", " + posTags.get(posTagIndex));
         }
         return NamedEntity.create(
-                category,
+                tag.getCategory(),
                 mention,
                 tag.getBegin(),
                 annotations.getDocumentId(),
@@ -143,7 +140,7 @@ public final class NamedEntity implements Entity {
     private NamedEntity(
                         @JsonProperty("category") Category category,
                         @JsonProperty("mention") String mention,
-                        @JsonProperty("offset") int offset,
+                        @JsonProperty("offset") long offset,
                         @JsonProperty("documentId") String documentId,
                         @JsonProperty("rootDocument") String rootDocument,
                         @JsonProperty("extractor") Pipeline.Type extractor,
@@ -153,19 +150,19 @@ public final class NamedEntity implements Entity {
         if (mention == null || mention.isEmpty()) {
             throw new IllegalArgumentException("Mention is undefined");
         }
+        this.mentionNorm = normalize(mention);
+        this.id = HASHER.hash( String.join("|",
+                documentId,
+                String.valueOf(offset),
+                extractor.toString(),
+                mentionNorm
+        ));
         this.category = Optional.ofNullable(category).orElse(UNKNOWN);
         this.mention = mention;
-        this.mentionNorm = normalize(mention);
         this.documentId = documentId;
         this.rootDocument = rootDocument;
         this.offset = offset;
         this.extractor = extractor;
-        this.id = HASHER.hash( String.join("|",
-                getDocumentId().toString(),
-                String.valueOf(offset),
-                getExtractor().toString(),
-                mentionNorm
-        ));
         this.extractorLanguage = extractorLanguage;
         this.hidden = hidden;
         this.partsOfSpeech = partsOfSpeech;
@@ -177,7 +174,7 @@ public final class NamedEntity implements Entity {
     public Category getCategory() { return category; }
     public String getDocumentId() { return documentId; }
     public String getRootDocument() { return rootDocument; }
-    public int getOffset() { return offset; }
+    public long getOffset() { return offset; }
     public Pipeline.Type getExtractor() { return extractor; }
     public Language getExtractorLanguage() { return extractorLanguage; }
     public Boolean isHidden() { return hidden; }
@@ -193,6 +190,19 @@ public final class NamedEntity implements Entity {
                 ", category=" + category +
                 ", offset=" + offset +
                 '}';
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        NamedEntity that = (NamedEntity) o;
+        return id.equals(that.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
     }
 
     @JsonIgnore
